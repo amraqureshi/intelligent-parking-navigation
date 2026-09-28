@@ -3,9 +3,9 @@
 Please refer to the root [README.md](../README.md) for full project documentation, architectural diagrams, state space definitions, action mappings, and DQN specifications.
 
 ### Key Backend Modules
-- `parking_environment.py`: NetworkX graph and Gym-compatible environment
-- `dqn_model.py`: DQN PyTorch neural network placeholder (Claude)
-- `replay_buffer.py`: Transition replay buffer placeholder (Claude)
-- `dqn_agent.py`: DQNAgent policy & target net logic placeholder (Claude)
-- `train_model.py`: Training pipeline template (Claude)
-- `evaluate.py`: Policy evaluation benchmark (Claude)
+- `parking_environment.py`: NetworkX graph and Gym-compatible parking simulation environment
+- `dqn_model.py`: DQN PyTorch neural network architecture
+- `replay_buffer.py`: High-throughput experience replay buffer
+- `dqn_agent.py`: DQNAgent policy & target network logic with action masking
+- `train_model.py`: 400-episode DQN training pipeline
+- `evaluate.py`: Policy evaluation benchmark comparing DQN against Dijkstra baseline

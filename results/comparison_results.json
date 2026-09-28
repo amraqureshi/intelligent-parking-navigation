@@ -1,0 +1,53 @@
+{
+    "num_episodes_per_level": 50,
+    "occupancy_rates": [
+        0.25,
+        0.5,
+        0.75
+    ],
+    "metrics_by_occupancy": {
+        "occupancy_25%": {
+            "baseline": {
+                "success_rate_pct": 100.0,
+                "avg_steps": 3.02,
+                "avg_reward": 50.91,
+                "invalid_moves_total": 0
+            },
+            "dqn": {
+                "success_rate_pct": 100.0,
+                "avg_steps": 3.02,
+                "avg_reward": 50.91,
+                "invalid_moves_total": 0
+            }
+        },
+        "occupancy_50%": {
+            "baseline": {
+                "success_rate_pct": 100.0,
+                "avg_steps": 3.18,
+                "avg_reward": 50.95,
+                "invalid_moves_total": 0
+            },
+            "dqn": {
+                "success_rate_pct": 100.0,
+                "avg_steps": 3.18,
+                "avg_reward": 50.95,
+                "invalid_moves_total": 0
+            }
+        },
+        "occupancy_75%": {
+            "baseline": {
+                "success_rate_pct": 100.0,
+                "avg_steps": 3.8,
+                "avg_reward": 51.14,
+                "invalid_moves_total": 0
+            },
+            "dqn": {
+                "success_rate_pct": 92.0,
+                "avg_steps": 7.54,
+                "avg_reward": 45.42,
+                "invalid_moves_total": 0
+            }
+        }
+    },
+    "summary": {}
+}

@@ -1,19 +1,12 @@
 """
-DQN Training Pipeline (Integration Placeholder for Claude)
-=========================================================
+DQN Training Pipeline
+=====================
 Module: backend.train_model
 
-INSTRUCTIONS FOR CLAUDE:
-------------------------
-This script runs the DQN training loop on the ParkingEnvironment.
-
-Key Training Specifications:
-- Environment: ParkingEnvironment(max_steps=50)
-- Episodes: 300 to 600 episodes (fast training within minutes on CPU/GPU)
-- Replay Pre-fill: Warm up buffer with 500-1000 transitions before training
-- Evaluation: Evaluate every 50 episodes on fixed scenarios
-- Checkpoint Output: models/dqn_parking.pth
-- Reward Curve Output: results/training_curve.png
+Trains the Deep Q-Network agent on the ParkingEnvironment over 400 episodes.
+Tracks reward progression, rolling success rates, Bellman loss, and saves:
+- Best model checkpoint: models/dqn_parking.pth
+- Training curve visualization: results/training_curve.png
 
 Run Command:
     python backend/train_model.py
@@ -21,8 +14,11 @@ Run Command:
 
 import os
 import sys
+import copy
+import random
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
 
 # Ensure project root is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -37,25 +33,33 @@ def train_dqn(
     max_steps_per_episode: int = 50,
     batch_size: int = 64,
     gamma: float = 0.99,
-    lr: float = 1e-3,
+    lr: float = 5e-4,
     epsilon_start: float = 1.0,
     epsilon_end: float = 0.05,
     epsilon_decay: float = 0.992,
-    target_update_freq: int = 20,
+    target_update_freq: int = 15,
+    seed: int = 42,
     save_path: str = "models/dqn_parking.pth",
     results_path: str = "results/training_curve.png",
 ):
     """
     Main training routine for DQN parking navigation.
     """
-    print("=" * 60)
+    # Set random seeds for reproducibility
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    print("=" * 65)
     print("  Intelligent Parking Navigation - DQN Training Pipeline")
-    print("=" * 60)
+    print("=" * 65)
     print(f"Target Checkpoint : {save_path}")
     print(f"Episodes          : {num_episodes}")
     print(f"Batch Size        : {batch_size}")
     print(f"Learning Rate     : {lr}")
-    print("=" * 60)
+    print(f"Discount Factor   : {gamma}")
+    print(f"Epsilon Decay     : {epsilon_decay} -> min {epsilon_end}")
+    print("=" * 65)
 
     env = ParkingEnvironment(max_steps=max_steps_per_episode)
     agent = DQNAgent(state_dim=env.state_dim, action_dim=env.action_dim, lr=lr, gamma=gamma)
@@ -66,32 +70,29 @@ def train_dqn(
     success_history = []
     loss_history = []
 
-    # -----------------------------------------------------------------------
-    # TODO (Claude): Finalize and tune the training loop below as needed.
-    # Standard DQN loop structure provided for immediate execution:
-    # -----------------------------------------------------------------------
+    # [1/3] Buffer Warm-up
     print("\n[1/3] Pre-filling Replay Buffer with random exploration...")
-    prefill_steps = 500
+    prefill_steps = 600
     p_step = 0
-    state, _ = env.reset(random_occupancy_rate=0.5)
+    state, _ = env.reset(seed=seed, random_occupancy_rate=0.5)
     while p_step < prefill_steps:
-        # Use valid actions to ensure high-quality transitions
         valid = env.get_valid_actions()
         action = np.random.choice(valid) if valid else np.random.randint(env.action_dim)
         next_state, reward, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
         replay_buffer.push(state, action, reward, next_state, done)
         p_step += 1
-        state = env.reset(random_occupancy_rate=0.5)[0] if done else next_state
+        state = env.reset(random_occupancy_rate=float(np.random.uniform(0.2, 0.8)))[0] if done else next_state
 
     print(f"Replay buffer pre-filled with {len(replay_buffer)} transitions.")
-    print("\n[2/3] Beginning Training Loop...")
+    print("\n[2/3] Beginning Training Loop (400 episodes)...")
 
-    best_success_rate = 0.0
+    best_score = -float("inf")
+    best_weights = None
 
     for episode in range(1, num_episodes + 1):
-        # Vary occupancy rate for generalized navigation
-        occ_rate = float(np.random.uniform(0.3, 0.7))
+        # Vary occupancy rate (20% to 80%) for generalized navigation
+        occ_rate = float(np.random.uniform(0.2, 0.8))
         state, _ = env.reset(random_occupancy_rate=occ_rate)
         ep_reward = 0.0
         ep_loss = []
@@ -117,61 +118,75 @@ def train_dqn(
             if done:
                 break
 
-        # Decay exploration
+        # Decay exploration rate
         epsilon = max(epsilon_end, epsilon * epsilon_decay)
 
-        # Update target network
+        # Update target network periodically
         if episode % target_update_freq == 0:
             agent.update_target_network()
 
         episode_rewards.append(ep_reward)
         success_history.append(1.0 if ep_success else 0.0)
-        avg_loss = np.mean(ep_loss) if ep_loss else 0.0
+        avg_loss = float(np.mean(ep_loss)) if ep_loss else 0.0
         loss_history.append(avg_loss)
 
         if episode % 25 == 0 or episode == num_episodes:
-            recent_success = np.mean(success_history[-25:]) * 100
-            recent_reward = np.mean(episode_rewards[-25:])
+            window = min(25, episode)
+            recent_success = float(np.mean(success_history[-window:])) * 100.0
+            recent_reward = float(np.mean(episode_rewards[-window:]))
             print(
                 f"Episode {episode:03d}/{num_episodes} | "
-                f"Avg Reward (last 25): {recent_reward:6.2f} | "
+                f"Avg Reward (last {window:02d}): {recent_reward:6.2f} | "
                 f"Success Rate: {recent_success:5.1f}% | "
-                f"Epsilon: {epsilon:4.3f} | "
-                f"Avg Loss: {avg_loss:.4f}"
+                f"Epsilon: {epsilon:5.3f} | "
+                f"Avg Loss: {avg_loss:6.4f}"
             )
 
-            if recent_success >= best_success_rate:
-                best_success_rate = recent_success
+            # Combined score: prioritize success rate, broken by average reward
+            score = recent_success * 10.0 + recent_reward
+            if score >= best_score:
+                best_score = score
+                best_weights = copy.deepcopy(agent.policy_net.state_dict())
                 agent.save(save_path)
 
-    print("\n[3/3] Training Complete! Saving plots and final weights...")
+    print("\n[3/3] Training Complete! Saving final checkpoint and plots...")
+    if best_weights is not None:
+        agent.policy_net.load_state_dict(best_weights)
     agent.save(save_path)
+    print(f"Optimal model weights checkpoint saved to: {save_path}")
 
-    # Plot results
+    # Generate and save training progression plot
     os.makedirs(os.path.dirname(results_path), exist_ok=True)
-    plt.figure(figsize=(12, 5))
+    plt.style.use("seaborn-v0_8-whitegrid" if "seaborn-v0_8-whitegrid" in plt.style.available else "default")
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
 
-    plt.subplot(1, 2, 1)
-    plt.plot(episode_rewards, label="Episode Reward", alpha=0.6, color="blue")
-    rolling_reward = np.convolve(episode_rewards, np.ones(20)/20, mode="valid")
-    plt.plot(rolling_reward, label="20-Ep Moving Avg", color="darkblue", linewidth=2)
-    plt.title("Reward Progression")
-    plt.xlabel("Episode")
-    plt.ylabel("Total Reward")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
+    # Reward Progression
+    ax1.plot(episode_rewards, label="Episode Reward", alpha=0.4, color="#38bdf8")
+    rolling_window = 20
+    if len(episode_rewards) >= rolling_window:
+        rolling_reward = np.convolve(episode_rewards, np.ones(rolling_window)/rolling_window, mode="valid")
+        ax1.plot(range(rolling_window - 1, len(episode_rewards)), rolling_reward,
+                 label=f"{rolling_window}-Ep Moving Avg", color="#0284c7", linewidth=2.2)
+    ax1.set_title("Reward Progression During Training", fontsize=12, fontweight="bold")
+    ax1.set_xlabel("Episode", fontsize=10)
+    ax1.set_ylabel("Total Cumulative Reward", fontsize=10)
+    ax1.grid(True, linestyle="--", alpha=0.5)
+    ax1.legend(loc="lower right")
 
-    plt.subplot(1, 2, 2)
-    rolling_succ = np.convolve(success_history, np.ones(20)/20, mode="valid") * 100
-    plt.plot(rolling_succ, label="Success Rate (%)", color="green", linewidth=2)
-    plt.title("Parking Success Rate")
-    plt.xlabel("Episode")
-    plt.ylabel("Success %")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
+    # Success Rate Progression
+    if len(success_history) >= rolling_window:
+        rolling_succ = np.convolve(success_history, np.ones(rolling_window)/rolling_window, mode="valid") * 100.0
+        ax2.plot(range(rolling_window - 1, len(success_history)), rolling_succ,
+                 label=f"{rolling_window}-Ep Success %", color="#10b981", linewidth=2.2)
+    ax2.set_title("Parking Navigation Success Rate (%)", fontsize=12, fontweight="bold")
+    ax2.set_xlabel("Episode", fontsize=10)
+    ax2.set_ylabel("Success Rate (%)", fontsize=10)
+    ax2.set_ylim(-5, 105)
+    ax2.grid(True, linestyle="--", alpha=0.5)
+    ax2.legend(loc="lower right")
 
     plt.tight_layout()
-    plt.savefig(results_path, dpi=150)
+    plt.savefig(results_path, dpi=160)
     plt.close()
     print(f"Training visualization saved to: {results_path}")
 

@@ -159,54 +159,101 @@ Loads the trained PyTorch DQN weights from `models/dqn_parking.pth` for live inf
 
 ---
 
-## 8. Exact Interface Claude Must Implement
+## 8. Deep Q-Network (DQN) Implementation
 
-Claude is responsible for completing the DQN implementation. The environment and placeholder files are structured so Claude only needs to implement standard RL components:
+The reinforcement learning pipeline is fully implemented across the following components:
 
-1. **`backend/dqn_model.py`**:
-   - `DQNNetwork(nn.Module)`:
-     - `__init__(self, state_dim=47, action_dim=4)`
-     - `forward(self, x: torch.Tensor) -> torch.Tensor` returning Q-values of shape `(batch_size, 4)`.
+1. **`backend/dqn_model.py` (`DQNNetwork`)**:
+   - 3-layer Multi-Layer Perceptron (MLP) with dimensions: `47 -> 128 -> 128 -> 64 -> 4`.
+   - ReLU non-linear activations.
+   - Outputs raw Q-values for the 4 discrete actions (UP, DOWN, LEFT, RIGHT).
 
-2. **`backend/replay_buffer.py`**:
-   - `ReplayBuffer(capacity=20000)`:
-     - `push(state, action, reward, next_state, done)`
-     - `sample(batch_size, device) -> (states, actions, rewards, next_states, dones)`
-     - `__len__() -> int`
+2. **`backend/replay_buffer.py` (`ReplayBuffer`)**:
+   - High-throughput FIFO circular experience replay buffer (capacity: 25,000 transitions).
+   - Uniform mini-batch sampling producing PyTorch Float/Long tensors on CPU/CUDA.
 
-3. **`backend/dqn_agent.py`**:
-   - `DQNAgent(state_dim=47, action_dim=4, lr=1e-3, gamma=0.99)`:
-     - `select_action(state, epsilon, valid_actions) -> int`
-     - `train_step(replay_buffer, batch_size=64) -> float (loss)`
-     - `update_target_network()`
-     - `save(filepath: str)`
-     - `load(filepath: str)`
+3. **`backend/dqn_agent.py` (`DQNAgent`)**:
+   - Double DQN (DDQN) target estimation: decouple action selection (policy network) from value evaluation (target network) to prevent overestimation bias.
+   - Smooth L1 (Huber) loss function with gradient clipping (`max_norm=1.0`).
+   - Polyak soft target network tracking (`tau=0.005`) for continuous stability.
+   - Action masking in `select_action` to prevent invalid physical graph traversals.
+   - Checkpoint serialization (`save`/`load`) with `weights_only=True` safe loading.
 
-4. **`backend/train_model.py`**:
-   - Runs training loop over ~400 episodes.
-   - Saves final weights to `models/dqn_parking.pth`.
-   - Saves reward and success curves to `results/training_curve.png`.
+4. **`backend/train_model.py` (`train_dqn`)**:
+   - 400-episode training pipeline with experience replay warm-up (600 steps).
+   - Randomized occupancy curriculum ($20\%$ to $80\%$) across episodes.
+   - Tracks rolling 20-episode rewards and success rates.
+   - Saves optimal checkpoint to `models/dqn_parking.pth` and reward/success curve to `results/training_curve.png`.
 
-5. **`backend/evaluate.py`**:
-   - Runs evaluation episodes and outputs success rate, average steps, and collision stats across 25%, 50%, and 75% congestion levels.
+5. **`backend/evaluate.py` (`evaluate_agent`)**:
+   - Rigorous side-by-side benchmark comparing NetworkX Dijkstra baseline against the trained DQN policy over identical, reproducibly seeded test episodes.
+   - Evaluates 25%, 50%, and 75% lot occupancy levels (50 trials each, 150 trials total).
+   - Explicit missing checkpoint handling (raises clear exception when `--baseline-only` is not specified).
+   - Generates `results/comparison_results.json`, `results/comparison_results.csv`, and `results/performance_vs_occupancy.png`.
 
 ---
 
-## 9. Installation & Verification
+## 9. Evaluation & Benchmark Results
 
-### Install Dependencies
+Benchmarked across 50 seeded trials per congestion level (150 identical comparisons):
+
+| Occupancy Rate | Policy | Success Rate (%) | Avg Steps to Park | Avg Cumulative Reward | Invalid Moves |
+| :---: | :---: | :---: | :---: | :---: | :---: |
+| **25%** | **Baseline (Dijkstra)** | 100.0% | 3.02 | 50.91 | 0 |
+| **25%** | **DQN Agent** | **100.0%** | **3.02** | **50.91** | **0** |
+| **50%** | **Baseline (Dijkstra)** | 100.0% | 3.18 | 50.95 | 0 |
+| **50%** | **DQN Agent** | **100.0%** | **3.18** | **50.95** | **0** |
+| **75%** | **Baseline (Dijkstra)** | 100.0% | 3.80 | 51.14 | 0 |
+| **75%** | **DQN Agent** | **92.0%** | **7.54** | **45.42** | **0** |
+
+- At low to moderate congestion (25% and 50%), the DQN agent achieves **100% optimal navigation**, matching the theoretical Dijkstra shortest path step-for-step with zero invalid moves.
+- Under high congestion (75%), DQN achieves **92.0% success rate** with 0 invalid moves.
+
+---
+
+## 10. Installation & Usage Instructions
+
+### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### Run Environment Test Suite
+### 2. Run Test Suites
+Run the full 24-test automated test suite:
 ```bash
-python test_environment.py
+pytest test_environment.py test_dqn.py -v
 ```
-*(Runs comprehensive tests for resets, action transitions, occupied spot avoidance, terminal success/failure, and fixed state shape).*
+- `test_environment.py` (11 tests): Graph layout, state shape, step transitions, collision prevention, edge cases.
+- `test_dqn.py` (13 tests): Network forward/backward pass, replay buffer, DDQN agent updates, action masking, save/load, checkpoint error handling.
 
-### Run Integration Contract Demo
+### 3. Train DQN Model
+Train the agent for 400 episodes and generate training curves:
+```bash
+python backend/train_model.py
+```
+Outputs:
+- Checkpoint: `models/dqn_parking.pth`
+- Visual Curve: `results/training_curve.png`
+
+### 4. Run Policy Evaluation Benchmark
+Run side-by-side benchmark of Baseline vs DQN:
+```bash
+python backend/evaluate.py
+```
+To evaluate only the NetworkX baseline without a DQN model:
+```bash
+python backend/evaluate.py --baseline-only
+```
+Outputs:
+- JSON Summary: `results/comparison_results.json`
+- CSV Table: `results/comparison_results.csv`
+- Comparative Plot: `results/performance_vs_occupancy.png`
+
+### 5. Run Main Integration Demo
+Demonstrates the API contract, loading the trained model, and exporting layout visualization:
 ```bash
 python main.py
 ```
-*(Demonstrates `get_parking_layout()`, `get_parking_status()`, and `find_parking()` with route generation).*
+Output:
+- Facility Layout Diagram: `results/parking_layout.png`
+

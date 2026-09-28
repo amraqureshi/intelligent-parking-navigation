@@ -109,7 +109,8 @@ def main():
     print(f"    - Occupancy Rate: {status['occupancy_rate'] * 100:.1f}%")
 
     # 3. Test find_parking() Navigation Contract
-    print("\n[3] Testing find_parking() Contract:")
+    print("\n[3] Testing find_parking() Contract (Loading Trained Model):")
+    load_model("models/dqn_parking.pth")
     nav_result = find_parking(start="ENTRY", occupied=occupied_example)
     print("    Result Payload:")
     print(json.dumps(nav_result, indent=4))

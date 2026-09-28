@@ -133,20 +133,29 @@ class DQNAgent:
         # Compute Q(s, a)
         curr_q = self.policy_net(states).gather(1, actions)
 
-        # Compute target Q: r + gamma * max_a' Q_target(s', a') * (1 - done)
+        # Double DQN target computation: policy net selects action, target net evaluates value
         with torch.no_grad():
-            next_q = self.target_net(next_states).max(1)[0].unsqueeze(1)
+            next_actions = self.policy_net(next_states).argmax(dim=1, keepdim=True)
+            next_q = self.target_net(next_states).gather(1, next_actions)
             target_q = rewards + (1.0 - dones) * self.gamma * next_q
 
         loss = self.loss_fn(curr_q, target_q)
 
         self.optimizer.zero_grad()
         loss.backward()
-        # Gradient clipping for stability
-        nn.utils.clip_grad_norm_(self.policy_net.parameters(), max_norm=10.0)
+        # Gradient clipping for numerical stability
+        nn.utils.clip_grad_norm_(self.policy_net.parameters(), max_norm=1.0)
         self.optimizer.step()
 
+        # Polyak soft update for smooth target network tracking
+        self.soft_update_target(tau=0.005)
+
         return float(loss.item())
+
+    def soft_update_target(self, tau: float = 0.005):
+        """Soft update model parameters: theta_target = tau*theta_local + (1 - tau)*theta_target."""
+        for target_param, policy_param in zip(self.target_net.parameters(), self.policy_net.parameters()):
+            target_param.data.copy_(tau * policy_param.data + (1.0 - tau) * target_param.data)
 
     def update_target_network(self):
         """Copies policy network parameters into target network."""
@@ -162,8 +171,9 @@ class DQNAgent:
         """Loads policy and target network checkpoint from disk."""
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Model file not found: {filepath}")
-        state_dict = torch.load(filepath, map_location=self.device)
+        state_dict = torch.load(filepath, map_location=self.device, weights_only=True)
         self.policy_net.load_state_dict(state_dict)
         self.target_net.load_state_dict(state_dict)
         self.policy_net.eval()
         print(f"[DQNAgent] Model loaded successfully from: {filepath}")
+

@@ -660,7 +660,7 @@ def load_model(model_path: Optional[str] = None) -> Any:
         # Attempt loading using Claude's dqn_model if present
         from backend.dqn_model import DQNNetwork
         model = DQNNetwork(state_dim=47, action_dim=4)
-        model.load_state_dict(torch.load(path_to_use, map_location="cpu"))
+        model.load_state_dict(torch.load(path_to_use, map_location="cpu", weights_only=True))
         model.eval()
         _LOADED_MODEL = model
         print(f"[load_model] Successfully loaded DQN model from '{path_to_use}'.")
@@ -732,7 +732,7 @@ def find_parking(start: str = "ENTRY", occupied: Optional[List[str]] = None) -> 
         with torch.no_grad():
             while not done and step_count < env.max_steps:
                 state_tensor = torch.FloatTensor(state).unsqueeze(0)
-                q_values = _LOADED_MODEL(state_tensor).squeeze(0).numpy()
+                q_values = _LOADED_MODEL(state_tensor).squeeze(0).detach().cpu().numpy()
 
                 # Action masking for valid legal moves
                 valid_mask = env.get_valid_action_mask()

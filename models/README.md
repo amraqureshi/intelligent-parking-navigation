@@ -1,1 +1,3 @@
-# Trained model checkpoints (e.g. dqn_parking.pth) will be saved here by Claude
+# Model Checkpoints
+
+- `dqn_parking.pth`: Trained PyTorch Deep Q-Network weights for parking navigation.
