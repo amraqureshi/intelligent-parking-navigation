@@ -25,17 +25,31 @@ parkinglot/
 ├── backend/
 │   ├── __init__.py               # Exports environment and contract functions
 │   ├── parking_environment.py    # Gym-style simulation & NetworkX graph layout
-│   ├── dqn_model.py              # PyTorch DQN architecture (Claude integration)
-│   ├── replay_buffer.py          # Experience replay buffer (Claude integration)
-│   ├── dqn_agent.py              # DQNAgent action & update logic (Claude integration)
-│   ├── train_model.py            # Training pipeline & reward curves (Claude integration)
-│   ├── evaluate.py               # Policy evaluation & benchmark (Claude integration)
+│   ├── dqn_model.py              # PyTorch DQN architecture
+│   ├── replay_buffer.py          # Experience replay buffer
+│   ├── dqn_agent.py              # DQNAgent policy & target network logic
+│   ├── train_model.py            # Training pipeline & reward curves
+│   ├── evaluate.py               # Policy evaluation & benchmark
+│   ├── api.py                    # FastAPI REST API backend service
 │   ├── requirements.txt          # Backend dependencies
 │   └── README.md                 # Backend documentation
+├── frontend/                     # Interactive React 19 + TypeScript + Vite Web App
+│   ├── src/
+│   │   ├── api/client.ts         # Typed API client connecting to FastAPI
+│   │   ├── components/           # Canvas, controls, telemetry, log, modals
+│   │   ├── utils/coordinates.ts  # Canvas grid coordinate mapper
+│   │   ├── types/simulation.ts   # TypeScript interfaces & contracts
+│   │   ├── App.tsx               # Primary dashboard layout & animation loops
+│   │   └── main.tsx              # React DOM entry point
+│   ├── package.json
+│   └── README.md                 # Frontend documentation
 ├── models/                       # Checkpoints directory (dqn_parking.pth)
-├── results/                      # Evaluation logs and plots (training_curve.png)
-├── test_environment.py           # Automated test suite verifying the environment
+├── results/                      # Evaluation logs and plots (training_curve.png, layout)
+├── app.py                        # Interactive Streamlit Python dashboard
 ├── main.py                       # Integration demo showcasing API contract
+├── test_environment.py           # Automated test suite verifying environment (11 tests)
+├── test_dqn.py                   # Automated test suite verifying DQN & agent (13 tests)
+├── test_api.py                   # Automated test suite verifying FastAPI REST API (12 tests)
 ├── requirements.txt              # Root dependencies
 └── README.md                     # Main documentation
 ```
@@ -215,18 +229,44 @@ Benchmarked across 50 seeded trials per congestion level (150 identical comparis
 
 ### 1. Install Dependencies
 ```bash
+# Python dependencies
 pip install -r requirements.txt
+
+# Frontend dependencies
+cd frontend && npm install && cd ..
 ```
 
 ### 2. Run Test Suites
-Run the full 24-test automated test suite:
+Run the full 36-test automated test suite across all subsystems:
 ```bash
-pytest test_environment.py test_dqn.py -v
+pytest test_environment.py test_dqn.py test_api.py -v
 ```
 - `test_environment.py` (11 tests): Graph layout, state shape, step transitions, collision prevention, edge cases.
 - `test_dqn.py` (13 tests): Network forward/backward pass, replay buffer, DDQN agent updates, action masking, save/load, checkpoint error handling.
+- `test_api.py` (12 tests): FastAPI health diagnostics, layout topology, simulation reset, interactive spot toggling, scenario presets, step-by-step stepping, DQN search, and full occupancy handling.
 
-### 3. Train DQN Model
+### 3. Launch Interactive Interfaces
+
+#### Option A: Interactive React 19 Web App (Full-Stack)
+Start the FastAPI REST backend server:
+```bash
+uvicorn backend.api:app --host 127.0.0.1 --port 8000 --reload
+```
+In a second terminal, launch the Vite development server:
+```bash
+cd frontend
+npm run dev
+```
+Access the interactive digital twin simulation at `http://localhost:5173`.
+
+#### Option B: Streamlit Python Dashboard
+Launch the pure Python dashboard directly without Node.js:
+```bash
+streamlit run app.py
+```
+Access the dashboard at `http://localhost:8501`.
+
+### 4. Train DQN Model
 Train the agent for 400 episodes and generate training curves:
 ```bash
 python backend/train_model.py
@@ -235,7 +275,7 @@ Outputs:
 - Checkpoint: `models/dqn_parking.pth`
 - Visual Curve: `results/training_curve.png`
 
-### 4. Run Policy Evaluation Benchmark
+### 5. Run Policy Evaluation Benchmark
 Run side-by-side benchmark of Baseline vs DQN:
 ```bash
 python backend/evaluate.py
@@ -249,7 +289,7 @@ Outputs:
 - CSV Table: `results/comparison_results.csv`
 - Comparative Plot: `results/performance_vs_occupancy.png`
 
-### 5. Run Main Integration Demo
+### 6. Run Main Integration Demo
 Demonstrates the API contract, loading the trained model, and exporting layout visualization:
 ```bash
 python main.py

@@ -7,7 +7,8 @@ import type {
   ModelMetrics,
 } from './types/simulation'
 import { TopNav } from './components/TopNav'
-import { ParkingLotCanvas, gridToCanvas } from './components/ParkingLotCanvas'
+import { ParkingLotCanvas } from './components/ParkingLotCanvas'
+import { gridToCanvas } from './utils/coordinates'
 import { ControlsBar } from './components/ControlsBar'
 import { MetricsPanel } from './components/MetricsPanel'
 import { ActivityLog } from './components/ActivityLog'
@@ -48,11 +49,20 @@ export function App() {
 
   // Refs for animation loop
   const isPausedRef = useRef(isPaused)
-  isPausedRef.current = isPaused
   const isMovingRef = useRef(isMoving)
-  isMovingRef.current = isMoving
   const simulationSpeedRef = useRef(simulationSpeed)
-  simulationSpeedRef.current = simulationSpeed
+
+  useEffect(() => {
+    isPausedRef.current = isPaused
+  }, [isPaused])
+
+  useEffect(() => {
+    isMovingRef.current = isMoving
+  }, [isMoving])
+
+  useEffect(() => {
+    simulationSpeedRef.current = simulationSpeed
+  }, [simulationSpeed])
 
   const addEvent = useCallback((type: ActivityEvent['type'], title: string, description: string) => {
     const newEvt: ActivityEvent = {

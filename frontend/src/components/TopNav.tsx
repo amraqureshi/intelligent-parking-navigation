@@ -65,7 +65,7 @@ export const TopNav: React.FC<TopNavProps> = ({
           }`}
         >
           <Cpu className="w-3.5 h-3.5" />
-          {isModelLoaded ? 'PyTorch DDQN Loaded' : 'Dijkstra Fallback'}
+          {isModelLoaded ? 'PyTorch DDQN Loaded' : 'DQN model unavailable'}
         </div>
 
         {/* Simulation State Badge */}

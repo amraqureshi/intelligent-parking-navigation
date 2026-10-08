@@ -13,20 +13,7 @@ interface ParkingLotCanvasProps {
   zoom: number
 }
 
-// Coordinate mapping constants
-const CANVAS_WIDTH = 1060
-const CANVAS_HEIGHT = 620
-const PADDING_X = 95
-const PADDING_Y = 85
-const X_STEP = 87
-const Y_STEP = 112.5
-
-export function gridToCanvas(gx: number, gy: number): { x: number; y: number } {
-  const x = PADDING_X + gx * X_STEP
-  // Invert Y so gy=5 is top, gy=1 is bottom
-  const y = PADDING_Y + (5 - gy) * Y_STEP
-  return { x, y }
-}
+import { gridToCanvas, CANVAS_WIDTH, CANVAS_HEIGHT } from '../utils/coordinates'
 
 export const ParkingLotCanvas: React.FC<ParkingLotCanvasProps> = ({
   layout,

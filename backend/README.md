@@ -9,3 +9,4 @@ Please refer to the root [README.md](../README.md) for full project documentatio
 - `dqn_agent.py`: DQNAgent policy & target network logic with action masking
 - `train_model.py`: 400-episode DQN training pipeline
 - `evaluate.py`: Policy evaluation benchmark comparing DQN against Dijkstra baseline
+- `api.py`: FastAPI REST API server connecting the environment & DQN policy to interactive frontends
